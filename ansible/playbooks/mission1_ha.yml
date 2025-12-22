@@ -30,7 +30,7 @@
 
     - [cite_start]name: Creation de la VIP et des ressources [cite: 40, 41]
       shell: |
-        pcs resource create virtual_ip ocf:heartbeat:IPaddr2 ip=192.168.56.100 cidr_netmask=24
+        pcs resource create virtual_ip ocf:heartbeat:IPaddr2 ip=192.168.100.100 cidr_netmask=24
         pcs resource create web_server ocf:heartbeat:nginx
         pcs resource group add ha_group virtual_ip web_server
       when: inventory_hostname == "node01"
