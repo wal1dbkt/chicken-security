@@ -53,4 +53,4 @@ Fusion des fichiers inventory pour éviter doublons
 Adaptation des IPs pour éviter conflits réseau
 
 Contact / Auteurs
-Projet réalisé par [TonNom] et [NomDuBinôme]
+Projet réalisé par Nicolas VELLA et Walid BERKOUAT
