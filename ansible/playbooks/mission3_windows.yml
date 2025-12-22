@@ -1,0 +1,5 @@
+- name: Configuration Windows Server & Active Directory
+  hosts: windows
+  gather_facts: no
+  roles:
+    - windows_ad

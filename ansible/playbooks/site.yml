@@ -1,0 +1,4 @@
+- import_playbook: mission1_cluster.yml
+- import_playbook: mission2_security.yml
+- import_playbook: mission3_windows.yml
+- import_playbook: mission4_zabbix.yml
