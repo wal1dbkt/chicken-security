@@ -1,0 +1,31 @@
+---
+- name: "Mission 2: Securisation des noeuds RedHat"
+  hosts: nodes
+  become: yes
+  tasks:
+    - [cite_start]name: Mise a jour des paquets de securite [cite: 48]
+      dnf:
+        name: '*'
+        state: latest
+
+    - [cite_start]name: Desactivation de la connexion SSH en root [cite: 47]
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PermitRootLogin'
+        line: 'PermitRootLogin no'
+
+    - [cite_start]name: Configuration du pare-feu (firewalld) [cite: 46]
+      firewalld:
+        service: "{{ item }}"
+        permanent: yes
+        state: enabled
+      loop:
+        - ssh
+        - http
+        - high-availability
+        - samba
+
+    - [cite_start]name: Recharger le pare-feu [cite: 46]
+      systemd:
+        name: firewalld
+        state: reloaded
