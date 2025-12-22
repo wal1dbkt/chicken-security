@@ -17,9 +17,10 @@ Machines : Ubuntu (Adminsible), Rocky Linux (Cluster HA), Windows Server (AD).
 
 ## Déploiement
 ```bash
-git clone <repo>
+git clone https://github.com/wal1dbkt/chicken-security/tree/second
 cd chicken-security
 vagrant up
+```
 Tout se configure automatiquement via le Vagrantfile.
 
 Structure du projet
