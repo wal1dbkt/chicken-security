@@ -66,6 +66,8 @@ Vagrant.configure("2") do |config|
       v.cpus = 2
       v.gui = true
     end
+
+    win.vm.provision "shell", privileged: true, path: "scripts/windows_prepare.ps1"
   end
 
 end

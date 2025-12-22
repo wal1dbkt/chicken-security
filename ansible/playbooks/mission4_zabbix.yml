@@ -1,10 +1,10 @@
-- name: Install Zabbix Server
+- name: Installer Zabbix Server
   hosts: admin
   become: true
   roles:
     - zabbix_server
 
-- name: Install Zabbix Agent
+- name: Installer Zabbix Agent
   hosts: nodes
   become: true
   roles:
