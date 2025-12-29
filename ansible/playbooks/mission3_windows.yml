@@ -1,5 +1,12 @@
+---
 - name: Configuration Windows Server & Active Directory
   hosts: windows
   gather_facts: no
+  
+  vars:
+    domain_name: "chicken.lab"        # Le nom de ton domaine
+    domain_netbios: "CHICKEN"         # Le nom court (optionnel mais recommandé)
+    safe_mode_password: "Password123!" # Mot de passe de restauration (Obligatoire pour AD)
+
   roles:
     - windows_ad

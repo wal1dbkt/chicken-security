@@ -1,3 +1,5 @@
 .vagrant/
 *.log
-*.retry
+ansible_rsa
+ansible_rsa.pub
+inventory.ini

@@ -3,29 +3,40 @@
   hosts: nodes
   become: yes
   tasks:
-    - [cite_start]name: Mise a jour des paquets de securite [cite: 48]
+    - name: Mise a jour des paquets de securite
       dnf:
         name: '*'
         state: latest
 
-    - [cite_start]name: Desactivation de la connexion SSH en root [cite: 47]
+    - name: Desactivation de la connexion SSH en root
       lineinfile:
         path: /etc/ssh/sshd_config
         regexp: '^PermitRootLogin'
         line: 'PermitRootLogin no'
 
-    - [cite_start]name: Configuration du pare-feu (firewalld) [cite: 46]
+    # --- CORRECTION CRITIQUE POUR LE CLUSTER ---
+    - name: Maintenir la confiance sur le réseau privé (Cluster UDP)
+      firewalld:
+        zone: trusted
+        source: 192.168.56.0/24
+        permanent: yes
+        state: enabled
+        immediate: yes
+
+    - name: Configuration du pare-feu (Services Publics)
       firewalld:
         service: "{{ item }}"
         permanent: yes
         state: enabled
+        immediate: yes
       loop:
         - ssh
         - http
         - high-availability
         - samba
+        - zabbix-agent  # <--- AJOUT IMPORTANT POUR MISSION 4
 
-    - [cite_start]name: Recharger le pare-feu [cite: 46]
-      systemd:
+    - name: Recharger le pare-feu
+      service:
         name: firewalld
         state: reloaded

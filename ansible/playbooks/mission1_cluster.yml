@@ -1,37 +1,177 @@
 ---
-- name: "Mission 1: Haute Disponibilite (HA)"
+- name: Mission 1 - Cluster HA (Pacemaker / Corosync)
   hosts: nodes
-  become: yes
+  become: true
+  gather_facts: true
+
+  # Variables pour les ressources
+  vars:
+    vip_address: "192.168.56.100" # L'IP flottante du cluster
+    vip_netmask: "24"
+
   tasks:
-    - [cite_start]name: Installation des paquets (Pacemaker, Corosync, Nginx, Samba) [cite: 10, 38, 39]
-      dnf:
-        name: [pacemaker, pcs, corosync, nginx, samba]
+    # ==========================================
+    # 1. NETTOYAGE & PRÉPARATION (Ton fix actuel)
+    # ==========================================
+    - name: Arrêter les services Cluster (Nettoyage)
+      service:
+        name: "{{ item }}"
+        state: stopped
+        enabled: no
+      loop: [pacemaker, corosync, pcsd]
+      ignore_errors: yes
+
+    - name: Tuer les processus résiduels
+      shell: "pkill -9 corosync || true"
+      ignore_errors: yes
+
+    - name: Supprimer les configs corrompues
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/corosync/corosync.conf
+        - /var/lib/pacemaker/cib
+
+    # ==========================================
+    # 2. SYSTÈME & RÉSEAU
+    # ==========================================
+    - name: Configurer /etc/hosts
+      lineinfile:
+        path: /etc/hosts
+        line: "{{ item.ip }} {{ item.name }}"
         state: present
+      loop:
+        - { ip: '192.168.56.20', name: 'node01' }
+        - { ip: '192.168.56.21', name: 'node02' }
 
-    - [cite_start]name: Demarrer le service PCSD [cite: 10]
-      systemd:
-        name: pcsd
-        enabled: yes
-        state: started
+    - name: Mettre SELinux en Permissive
+      selinux:
+        policy: targeted
+        state: permissive
 
-    - name: Definir le mot de passe cluster
+    # ==========================================
+    # 3. INSTALLATION PAQUETS
+    # ==========================================
+    - name: Configurer les dépôts HA
+      shell: |
+        dnf config-manager --set-enabled powertools || dnf config-manager --set-enabled crb
+        dnf config-manager --set-enabled ha
+      ignore_errors: yes
+
+    - name: Installer les paquets Cluster + Nginx + Samba
+      dnf:
+        name: [pacemaker, corosync, pcs, nginx, samba, psmisc, policycoreutils-python-utils]
+        state: present
+        disablerepo: epel
+
+    # ==========================================
+    # 4. PARE-FEU (Ta solution "Trusted")
+    # ==========================================
+    - name: Démarrer Firewalld
+      service: name=firewalld state=started enabled=yes
+
+    - name: Mettre le réseau privé en zone Trusted
+      firewalld:
+        zone: trusted
+        source: 192.168.56.0/24
+        permanent: yes
+        state: enabled
+        immediate: yes
+
+    # ==========================================
+    # 5. CONFIGURATION NGINX & SAMBA (Pré-requis)
+    # ==========================================
+    - name: Créer une page Web de test (Pour preuve de fonctionnement)
+      copy:
+        content: "<h1>Cluster HA Actif sur {{ ansible_hostname }}</h1>"
+        dest: /usr/share/nginx/html/index.html
+
+    - name: Configurer Samba (Basique pour le TP)
+      blockinfile:
+        path: /etc/samba/smb.conf
+        block: |
+          [ha_share]
+          path = /srv/samba
+          writable = yes
+          guest ok = yes
+          read only = no
+
+    - name: Créer le dossier partagé Samba
+      file:
+        path: /srv/samba
+        state: directory
+        mode: '0777'
+
+    # ==========================================
+    # 6. CRÉATION DU CLUSTER (Ton fix UDPU/Token)
+    # ==========================================
+    - name: Démarrer pcsd
+      service: name=pcsd state=started enabled=yes
+
+    - name: Définir mot de passe hacluster
       user:
         name: hacluster
-        password: "{{ 'admin123' | password_hash('sha512') }}"
+        password: "{{ 'hacluster' | password_hash('sha512') }}"
 
-    - [cite_start]name: Configuration du Cluster (sur Node01 seulement) [cite: 38]
-      shell: |
-        pcs host auth node01 node02 -u hacluster -p admin123
-        pcs cluster setup mon_cluster node01 node02 --force
-        pcs cluster start --all
-        pcs property set stonith-enabled=false
-      when: inventory_hostname == "node01"
+    - name: Authentifier les nodes
+      command: pcs host auth node01 node02 -u hacluster -p hacluster
       run_once: true
 
-    - [cite_start]name: Creation de la VIP et des ressources [cite: 40, 41]
-      shell: |
-        pcs resource create virtual_ip ocf:heartbeat:IPaddr2 ip=192.168.100.100 cidr_netmask=24
-        pcs resource create web_server ocf:heartbeat:nginx
-        pcs resource group add ha_group virtual_ip web_server
-      when: inventory_hostname == "node01"
+    - name: Créer le cluster (Fix Latence + IPs fixes)
+      command: >
+        pcs cluster setup ha-cluster 
+        node01 addr=192.168.56.20 
+        node02 addr=192.168.56.21 
+        --force 
+        totem token=10000
       run_once: true
+
+    - name: Démarrer le cluster
+      command: pcs cluster start --all
+      run_once: true
+
+    - name: Activer le cluster au boot
+      command: pcs cluster enable --all
+      run_once: true
+
+    - name: Attendre le quorum (15s)
+      pause:
+        seconds: 15
+
+    - name: Désactiver STONITH
+      command: pcs property set stonith-enabled=false
+      run_once: true
+      ignore_errors: yes
+
+    # ==========================================
+    # 7. CRÉATION DES RESSOURCES (Mission 1 Finale)
+    # ==========================================
+    - name: Créer la Ressource VIP (IP Flottante)
+      command: >
+        pcs resource create ClusterVIP ocf:heartbeat:IPaddr2 
+        ip={{ vip_address }} cidr_netmask={{ vip_netmask }} 
+        op monitor interval=30s
+      run_once: true
+      ignore_errors: yes # Ignore si déjà créé
+
+    - name: Créer la Ressource Nginx
+      command: >
+        pcs resource create WebServer ocf:heartbeat:nginx 
+        configfile=/etc/nginx/nginx.conf 
+        op monitor interval=30s
+      run_once: true
+      ignore_errors: yes
+
+    - name: Créer la Ressource Samba
+      command: >
+        pcs resource create SambaServer systemd:smb 
+        op monitor interval=30s
+      run_once: true
+      ignore_errors: yes
+
+    - name: Créer le Groupe de Ressources (Colocation)
+      # Tout doit tourner sur la même machine (VIP + Web + Samba)
+      command: pcs resource group add HA_Group ClusterVIP WebServer SambaServer
+      run_once: true
+      ignore_errors: yes
